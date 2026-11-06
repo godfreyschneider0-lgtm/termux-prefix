@@ -1,0 +1,14 @@
+Package: figlet
+Architecture: aarch64
+Version: 2.2.5-3
+Maintainer: @termux
+Installed-Size: 828
+Filename: ./figlet_2.2.5-3_aarch64.deb
+Size: 89712
+MD5sum: 92d5e6d99cd8a9cb9b92798646617fbf
+SHA1: 2215cf1cf548d73a23ecc433b6e1a7daaa2c6d93
+SHA256: d05e7918896c682eb0c4ea6ac4725368699abf15025e354d703bc3f97ae2d353
+SHA512: 0b72d68c2a218c75434ed0a08b8a61d7aaf2b32e56c9317600cd03307281c1ec3e2413304d9ae7cdfd2f90a6ac974ad21ed281f9c51c45bcb71539f0243aca32
+Homepage: https://www.figlet.org/
+Description: Program for making large letters out of ordinary text
+
