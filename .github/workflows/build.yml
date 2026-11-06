@@ -88,6 +88,17 @@ jobs:
           apt-ftparchive release . > Release
           echo "packages: $(grep -c '^Package:' Packages)"
 
+      - name: Upload debs as artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: debs-${{ inputs.arch }}-${{ github.run_number }}
+          path: |
+            public/*.deb
+            public/Packages
+            public/Packages.gz
+            public/Release
+          retention-days: 30
+
       - name: Publish to gh-pages
         uses: peaceiris/actions-gh-pages@v4
         with:
