@@ -68,6 +68,16 @@ if 'TERMUX_PKG_DEPENDS="libandroid-support, ncurses"' in s:
     print(f"  + {ht}: libcap dependency")
 else:
     print(f"  = {ht}")
+
+# 5) pv: bionic has no static libc, disable the static build
+pv = "packages/pv/build.sh"
+s = read(pv)
+if '--disable-static' not in s:
+    write(pv, s.replace('--disable-ipc -enable-copy-file-range',
+                        '--disable-ipc -enable-copy-file-range --disable-static'))
+    print(f"  + {pv}: --disable-static")
+else:
+    print(f"  = {pv}")
 PY
 
 echo "patches applied to $REPO (rootfs=$ROOTFS)"
