@@ -1,0 +1,97 @@
+name: build-packages
+
+on:
+  workflow_dispatch:
+    inputs:
+      packages:
+        description: "Space separated package names"
+        required: true
+        default: "figlet"
+      arch:
+        description: "Target architecture"
+        required: true
+        default: "aarch64"
+      rootfs:
+        description: "Target rootfs (prefix = <rootfs>/usr)"
+        required: true
+        default: "/data/adb/termux"
+      keep:
+        description: "Keep existing packages in the published repo"
+        type: boolean
+        default: true
+
+permissions:
+  contents: write
+
+concurrency:
+  group: build-packages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 350
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install host tools
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq apt-utils aria2
+
+      - name: Clone termux-packages
+        run: git clone --depth 1 https://github.com/termux/termux-packages.git upstream
+
+      - name: Apply patches
+        run: |
+          chmod +x scripts/apply-patches.sh
+          ./scripts/apply-patches.sh upstream "${{ inputs.rootfs }}"
+
+      - name: Start builder container
+        run: |
+          docker pull ghcr.io/termux/package-builder:latest
+          docker run -d --name builder --privileged --network host \
+            -v "$PWD/upstream:/home/builder/termux-packages" \
+            ghcr.io/termux/package-builder:latest sleep infinity
+
+      - name: Ensure NDK r30
+        run: |
+          if docker exec -u builder builder test -x /home/builder/lib/android-ndk-r30/toolchains/llvm/prebuilt/linux-x86_64/bin/clang; then
+            echo "NDK r30 already present"
+            exit 0
+          fi
+          aria2c -x16 -s16 -q -d /tmp -o ndk.zip \
+            https://dl.google.com/android/repository/android-ndk-r30-linux.zip
+          echo "753611f410d002cfcd3f3dc2ef49aad532089d3180b436c060a90bf0fcb64df2  /tmp/ndk.zip" | sha256sum -c -
+          docker cp /tmp/ndk.zip builder:/tmp/ndk.zip
+          docker exec -u builder builder bash -c \
+            'cd /home/builder/lib && unzip -q /tmp/ndk.zip && rm -f /tmp/ndk.zip && rm -rf android-ndk-r30/sources/cxx-stl/system'
+
+      - name: Build
+        run: |
+          set -e
+          for pkg in ${{ inputs.packages }}; do
+            echo "::group::build $pkg"
+            docker exec -u builder builder bash -lc \
+              "cd /home/builder/termux-packages && ./build-package.sh -a ${{ inputs.arch }} $pkg"
+            echo "::endgroup::"
+          done
+
+      - name: Collect and index
+        run: |
+          set -e
+          mkdir -p public
+          cp upstream/output/*.deb public/
+          cd public
+          apt-ftparchive packages . > Packages
+          gzip -9c Packages > Packages.gz
+          apt-ftparchive release . > Release
+          echo "packages: $(grep -c '^Package:' Packages)"
+
+      - name: Publish to gh-pages
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./public
+          keep_files: ${{ inputs.keep }}
+          commit_message: "build: ${{ inputs.packages }} (${{ inputs.arch }})"
