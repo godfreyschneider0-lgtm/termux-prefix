@@ -80,4 +80,51 @@ else:
     print(f"  = {pv}")
 PY
 
+# 6) termux-tools: there is no Termux app on the target device, so the
+#    termux-am / termux-am-socket helpers can never work. Drop them from the
+#    dependency list and stop installing the scripts that call into the app.
+TT="packages/termux-tools/build.sh"
+if ! grep -q 'termux-am (>= 0.8.0)' "$TT"; then
+    echo "  = $TT"
+else
+    sed -i \
+        -e 's/, termux-am (>= 0.8.0), termux-am-socket (>= 1.5.0)//' \
+        -e 's/^TERMUX_PKG_REVISION=1$/TERMUX_PKG_REVISION=2/' \
+        "$TT"
+    cat > packages/termux-tools/0001-drop-app-coupled-scripts.patch <<'PATCH'
+[adb-termux] There is no Termux app on this device, so drop the helpers that
+talk to it over the Android activity manager:
+
+  termux-reset            rewrites the app's am.apk
+  termux-reload-settings  broadcasts to com.termux
+  termux-setup-storage    broadcasts + expects the app to grant storage
+  termux-wake-lock        starts a service inside com.termux
+  termux-wake-unlock      idem
+
+--- a/scripts/Makefile.am
++++ b/scripts/Makefile.am
+@@ -19,9 +19,8 @@
+ # shell scripts:
+ bin_SCRIPTS = chsh dalvikvm login pkg su termux-backup			\
+ termux-change-repo termux-fix-shebang termux-info termux-open		\
+-termux-open-url termux-reload-settings termux-reset termux-restore	\
+-termux-setup-package-manager termux-setup-storage termux-wake-lock	\
+-termux-wake-unlock
++termux-open-url termux-restore						\
++termux-setup-package-manager
+ 
+ # wrappers around tools in /system/bin:
+ bin_SCRIPTS += df getprop logcat ping ping6 pm settings top
+@@ -73,7 +72,6 @@
+ $(eval $(call tool-rule,termux-open))
+ $(eval $(call tool-rule,termux-open-url))
+ $(eval $(call tool-rule,termux-reload-settings))
+-$(eval $(call tool-rule,termux-reset))
+ $(eval $(call tool-rule,termux-restore))
+ $(eval $(call tool-rule,termux-setup-package-manager))
+ $(eval $(call tool-rule,termux-setup-storage))
+PATCH
+    echo "  + $TT: no termux-am/termux-am-socket, App helpers dropped"
+fi
+
 echo "patches applied to $REPO (rootfs=$ROOTFS)"
