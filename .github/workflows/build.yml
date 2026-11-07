@@ -99,12 +99,22 @@ jobs:
           mkdir -p public
           cp upstream/output/*.deb public/
           cd public
+          # Debian epoch (e.g. 1:2026.11.05) puts a colon in the filename.
+          # GitHub artifacts and some filesystems reject it, so drop the epoch.
+          for f in ./*:*.deb; do
+            [ -e "$f" ] || continue
+            base=$(basename "$f")
+            fixed=$(printf '%s' "$base" | sed -E 's/^([^_]+)_[0-9]+:/\1_/')
+            echo "rename: $base -> $fixed"
+            mv -- "$f" "./$fixed"
+          done
           apt-ftparchive packages . > Packages
           gzip -9c Packages > Packages.gz
           apt-ftparchive release . > Release
           echo "packages: $(grep -c '^Package:' Packages)"
 
       - name: Upload debs as artifact
+        continue-on-error: true
         uses: actions/upload-artifact@v4
         with:
           name: debs-${{ inputs.arch }}-${{ github.run_number }}
