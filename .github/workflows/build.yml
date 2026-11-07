@@ -69,13 +69,29 @@ jobs:
 
       - name: Build
         run: |
-          set -e
+          set -u
+          failed=""
           for pkg in ${{ inputs.packages }}; do
             echo "::group::build $pkg"
-            docker exec -u builder builder bash -lc \
-              "cd /home/builder/termux-packages && ./build-package.sh -a ${{ inputs.arch }} $pkg"
+            log="/tmp/build-${pkg}.log"
+            if docker exec -u builder builder bash -lc \
+                 "cd /home/builder/termux-packages && ./build-package.sh -a ${{ inputs.arch }} $pkg" \
+                 > "$log" 2>&1; then
+              echo "ok: $pkg"
+            elif grep -qE "No package ${pkg} found" "$log"; then
+              # Not an error: the upstream name differs (e.g. curl lives in libcurl).
+              echo "::warning::package '${pkg}' does not exist upstream, skipped"
+            else
+              echo "::error::build of '${pkg}' failed"
+              tail -60 "$log"
+              failed="${failed} ${pkg}"
+            fi
             echo "::endgroup::"
           done
+          if [ -n "$failed" ]; then
+            echo "failed packages:${failed}"
+            exit 1
+          fi
 
       - name: Collect and index
         run: |

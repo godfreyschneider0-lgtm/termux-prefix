@@ -54,7 +54,10 @@ Dependencies are resolved from the published index like any apt repository.
 
 - Building is per-package on demand. There is no full mirror: request the
   packages you need.
-- A job is capped at 6 hours; large packages (llvm, etc.) may need to be built
+- Some binaries live in a differently named package: `curl` ships from
+  `libcurl`, `bzip2` ships from `libbz2`. Request the parent package name.
+  Unknown names are skipped with a warning instead of failing the run.
+- A job is capped at 6 hours; large packages (llvm, rust, etc.) may need to be built
   locally instead.
 - First run also needs GitHub Pages enabled once
   (Settings → Pages → Branch: `gh-pages`).
